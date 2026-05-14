@@ -129,7 +129,6 @@
         </header>
 
         <main class="workspace">
-            <!-- Panel Lewy: Kamera -->
             <section class="panel">
                 <div class="media-box">
                     <div id="scanIndicator" class="hidden scanning-line"></div>
@@ -137,8 +136,8 @@
                     <canvas id="captureCanvas" class="hidden"></canvas>
                     
                     <div id="cameraPlaceholder" class="absolute inset-0 flex flex-col items-center justify-center bg-slate-900/90">
-                        <p class="text-white/40 text-[10px] font-bold uppercase tracking-widest text-center px-4">
-                            Zezwól na dostęp do kamery
+                        <p class="text-white/40 text-[10px] font-bold uppercase tracking-widest text-center px-4 leading-relaxed">
+                            Zezwól na dostęp do kamery,<br>aby rozpocząć
                         </p>
                     </div>
                 </div>
@@ -150,7 +149,6 @@
                 <button id="startBtn" class="btn btn-primary w-full">Start Detekcji</button>
             </section>
 
-            <!-- Panel Prawy: Wynik -->
             <section class="panel">
                 <div class="media-box bg-slate-900/30 border-dashed">
                     <div id="placeholderUI" class="text-center opacity-10 font-black text-3xl uppercase tracking-tighter">AI ART</div>
@@ -170,16 +168,16 @@
         </main>
 
         <footer class="shrink-0 text-[9px] text-white/20 py-2 flex justify-between items-center px-2">
-            <span>PUBLIC API VERSION (1.5 FLASH)</span>
-            <span id="apiKeyWarning" class="text-red-500 hidden font-bold">SPRAWDŹ KLUCZ API!</span>
+            <span>PREVIEW VERSION</span>
+            <span>AUTO DETECT MODE</span>
         </footer>
     </div>
 
     <script>
-        /**
-         * TWOJE API: Wklej klucz poniżej.
-         */
+        // Zmienne globalne zadeklarowane na samym początku skryptu
         const apiKey = "AIzaSyBdEZ-ptyF1CIrg2LT7QeDDziuuAKxbfOc"; 
+        let isProcessing = false;
+        let detectionInterval = null;
         
         const video = document.getElementById('video');
         const canvas = document.getElementById('captureCanvas');
@@ -194,28 +192,25 @@
         const scanIndicator = document.getElementById('scanIndicator');
         const cameraPlaceholder = document.getElementById('cameraPlaceholder');
 
-        // Automatyczne sprawdzenie klucza
-        if (apiKey === "" && !window.location.hostname.includes('gemini')) {
-            document.getElementById('apiKeyWarning').classList.remove('hidden');
-        }
-
         async function apiRequest(model, payload) {
             const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-            try {
-                const response = await fetch(url, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                if (!response.ok) {
-                    const err = await response.json();
-                    throw new Error(err.error?.message || "API Error");
+            const retryDelays = [1000, 2000, 4000, 8000, 16000];
+            
+            for (let i = 0; i < retryDelays.length; i++) {
+                try {
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    
+                    if (response.ok) return await response.json();
+                } catch (e) {
+                    if (i === retryDelays.length - 1) throw e;
+                    await new Promise(r => setTimeout(r, retryDelays[i]));
                 }
-                return await response.json();
-            } catch (e) {
-                console.error("API Call failed:", e.message);
-                throw e;
             }
+            throw new Error("Błąd API");
         }
 
         async function initCamera() {
@@ -237,7 +232,11 @@
         }
 
         function startDetection() {
-            if (detectionInterval) clearInterval(detectionInterval);
+            // Bezpieczne czyszczenie interwału, jeśli już istnieje
+            if (detectionInterval) {
+                clearInterval(detectionInterval);
+            }
+            
             detectionInterval = setInterval(async () => {
                 if (isProcessing) return;
                 
@@ -249,11 +248,10 @@
                 const base64 = canvas.toDataURL('image/png').split(',')[1];
 
                 try {
-                    // Używamy 1.5-flash (najbardziej stabilny publicznie)
-                    const res = await apiRequest('gemini-1.5-flash', {
+                    const res = await apiRequest('gemini-2.5-flash-preview-09-2025', {
                         contents: [{
                             parts: [
-                                { text: "Is person smiling? Respond JSON: { \"smiling\": true/false, \"msg\": \"Feedback\" }" },
+                                { text: "Is person in image smiling clearly? Respond ONLY JSON: { \"smiling\": true/false, \"msg\": \"Polish feedback\" }" },
                                 { inlineData: { mimeType: "image/png", data: base64 } }
                             ]
                         }],
@@ -263,14 +261,14 @@
                     const data = JSON.parse(res.candidates[0].content.parts[0].text);
                     if (data.smiling) {
                         isProcessing = true;
-                        clearInterval(detectionInterval);
+                        if (detectionInterval) clearInterval(detectionInterval);
                         statusText.textContent = "UŚMIECH WYKRYTY!";
                         generateArt(base64);
                     } else {
                         statusText.textContent = data.msg || "Czekam na uśmiech...";
                     }
                 } catch (e) {
-                    console.log("Detection skip...");
+                    console.log("Retry detection...");
                 }
             }, 3000);
         }
@@ -282,30 +280,25 @@
             finalImage.classList.remove('hidden');
 
             try {
-                // Próba generowania obrazu (wymaga Vertex AI lub konkretnego klucza z dostępem do Imagen)
-                // Na standardowym kluczu API Studio, 1.5-flash NIE generuje obrazów.
-                // Jeśli Twój klucz nie obsługuje Imagen, aplikacja wyświetli oryginalne zdjęcie jako 'szkic'.
-                
-                const response = await apiRequest('gemini-1.5-flash', {
+                const response = await apiRequest('gemini-2.5-flash-image-preview', {
                     contents: [{
                         parts: [
-                            { text: "Create a funny 3D caricature of this person. Pixar style." },
+                            { text: "Create a funny 3D caricature of this person. Pixar style. Big head, huge joyful smile." },
                             { inlineData: { mimeType: "image/png", data: base64 } }
                         ]
                     }],
-                    // Próba wymuszenia modalności obrazu (działa tylko w środowiskach wspierających)
                     generationConfig: { responseModalities: ["IMAGE"] }
                 });
 
                 const imagePart = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
                 if (imagePart) {
                     finalImage.src = `data:image/png;base64,${imagePart.inlineData.data}`;
+                    statusText.textContent = "Karykatura gotowa!";
                 } else {
-                    statusText.textContent = "Twoje zdjęcie (klucz nie wspiera generowania obrazów)";
+                    statusText.textContent = "Oryginalne ujęcie";
                 }
             } catch (err) {
-                console.warn("Image gen failed - showing original as fallback");
-                statusText.textContent = "Klucz API ogranicza generowanie grafiki.";
+                statusText.textContent = "Błąd generowania";
             } finally {
                 loaderOverlay.classList.add('hidden');
                 actionContainer.classList.remove('hidden');
@@ -318,7 +311,7 @@
             placeholderUI.classList.remove('hidden');
             actionContainer.classList.add('hidden');
             scanIndicator.classList.remove('hidden');
-            statusText.textContent = "Ponowne skanowanie...";
+            statusText.textContent = "Wznawiam detekcję...";
             startDetection();
         }
 
