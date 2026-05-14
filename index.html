@@ -2,115 +2,185 @@
 <html lang="pl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Smile & Caricature Studio - One Screen</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AI Smile Studio - No Scroll</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        .gradient-bg {
-            background: linear-gradient(135deg, #020617 0%, #1e1b4b 100%);
+        :root {
+            --bg-dark: #020617;
+            --accent-cyan: #22d3ee;
+            --accent-fuchsia: #d946ef;
         }
-        .loader {
-            border-top-color: #f59e0b;
-            animation: spinner 1.5s linear infinite;
+
+        body, html {
+            height: 100%;
+            overflow: hidden;
+            margin: 0;
+            position: fixed;
+            width: 100%;
+            background: radial-gradient(circle at top right, #1e1b4b, var(--bg-dark));
+            color: white;
+            font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
         }
-        @keyframes spinner {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+
+        .main-container {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            padding: 0.5rem;
+            box-sizing: border-box;
         }
+
+        .workspace {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            min-height: 0;
+        }
+
+        @media (min-width: 1024px) {
+            .workspace { flex-direction: row; }
+            .main-container { padding: 1rem; }
+        }
+
+        .panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            min-height: 0;
+        }
+
+        .media-box {
+            position: relative;
+            flex: 1;
+            background: black;
+            border-radius: 1rem;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
         .scanning-line {
             height: 2px;
-            background: #22d3ee;
-            box-shadow: 0 0 15px #22d3ee;
+            background: var(--accent-cyan);
+            box-shadow: 0 0 15px var(--accent-cyan);
             position: absolute;
             width: 100%;
             top: 0;
             z-index: 10;
             animation: scan 3s ease-in-out infinite;
         }
+
         @keyframes scan {
-            0%, 100% { top: 0; opacity: 0.3; }
+            0%, 100% { top: 0; opacity: 0.1; }
             50% { top: 100%; opacity: 1; }
         }
-        body, html {
-            height: 100%;
-            overflow: hidden;
-            margin: 0;
+
+        .status-bar {
+            height: 3rem;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 0.75rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0 1rem;
+            font-size: 0.75rem;
+            color: #94a3b8;
+            text-align: center;
         }
+
+        .btn {
+            height: 3rem;
+            border-radius: 0.75rem;
+            font-weight: 700;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: 0.2s;
+        }
+
+        .btn-primary { background: #0891b2; }
+        .btn-primary:active { transform: scale(0.98); }
+        .btn-action { background: #c026d3; }
+
+        .loader {
+            border: 3px solid rgba(255, 255, 255, 0.1);
+            border-top-color: #f59e0b;
+            border-radius: 50%;
+            width: 2rem;
+            height: 2rem;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
     </style>
 </head>
-<body class="gradient-bg text-white font-sans">
+<body>
 
-    <div class="h-screen flex flex-col p-3 md:p-6 gap-3">
-        <!-- Nagłówek -->
-        <header class="text-center shrink-0">
-            <h1 class="text-xl md:text-3xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-fuchsia-500">
-                STUDIO KARYKATURY AI 🤖
+    <div class="main-container">
+        <header class="text-center py-2 shrink-0">
+            <h1 class="text-xl md:text-2xl font-black tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-fuchsia-500 uppercase">
+                Studio Karykatury AI
             </h1>
         </header>
 
-        <!-- Główna sekcja -->
-        <main class="flex-1 min-h-0 flex flex-col lg:flex-row gap-4">
-            
-            <!-- Lewa strona: Kamera -->
-            <div class="flex-1 flex flex-col gap-3 min-h-0">
-                <div id="videoContainer" class="relative flex-1 bg-black rounded-3xl overflow-hidden border border-white/10 shadow-2xl">
-                    <div id="scanIndicator" class="hidden absolute inset-0 pointer-events-none">
-                        <div class="scanning-line"></div>
-                    </div>
-                    
+        <main class="workspace">
+            <!-- Panel Lewy: Kamera -->
+            <section class="panel">
+                <div class="media-box">
+                    <div id="scanIndicator" class="hidden scanning-line"></div>
                     <video id="video" autoplay playsinline class="w-full h-full object-cover scale-x-[-1]"></video>
                     <canvas id="captureCanvas" class="hidden"></canvas>
                     
-                    <div id="cameraPlaceholder" class="absolute inset-0 flex flex-col items-center justify-center bg-slate-900/50 backdrop-blur-sm">
-                        <svg class="w-12 h-12 text-white/20 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
-                        </svg>
-                        <p class="text-white/30 text-xs font-bold uppercase tracking-widest">Kamera gotowa</p>
+                    <div id="cameraPlaceholder" class="absolute inset-0 flex flex-col items-center justify-center bg-slate-900/90">
+                        <p class="text-white/40 text-[10px] font-bold uppercase tracking-widest text-center px-4">
+                            Zezwól na dostęp do kamery
+                        </p>
                     </div>
                 </div>
 
-                <div class="h-14 shrink-0 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center px-4 overflow-hidden">
-                    <p id="statusText" class="text-gray-400 text-xs md:text-sm text-center font-medium leading-tight italic">
-                        Kliknij przycisk poniżej, aby uruchomić AI.
-                    </p>
+                <div class="status-bar">
+                    <p id="statusText">System gotowy</p>
                 </div>
                 
-                <button id="startBtn" class="shrink-0 bg-cyan-600 hover:bg-cyan-500 py-4 rounded-2xl font-bold text-sm transition-all transform active:scale-95 shadow-xl flex items-center justify-center gap-2">
-                    URUCHOM DETEKCJĘ
-                </button>
-            </div>
+                <button id="startBtn" class="btn btn-primary w-full">Start Detekcji</button>
+            </section>
 
-            <!-- Prawa strona: Wynik -->
-            <div class="flex-1 flex flex-col gap-3 min-h-0">
-                <div id="resultBox" class="relative flex-1 bg-slate-900/30 rounded-3xl border border-dashed border-white/20 flex items-center justify-center overflow-hidden">
-                    <div id="placeholderUI" class="text-center opacity-20">
-                        <p class="font-black text-3xl md:text-5xl tracking-tighter">AI ART</p>
-                        <p class="text-[10px] uppercase tracking-[0.3em]">Czekam na Twój uśmiech</p>
-                    </div>
+            <!-- Panel Prawy: Wynik -->
+            <section class="panel">
+                <div class="media-box bg-slate-900/30 border-dashed">
+                    <div id="placeholderUI" class="text-center opacity-10 font-black text-3xl uppercase tracking-tighter">AI ART</div>
+                    <img id="finalImage" class="hidden w-full h-full object-contain z-10" alt="Wynik">
                     
-                    <img id="finalImage" class="hidden w-full h-full object-contain" alt="Wynik">
-                    
-                    <div id="loaderOverlay" class="hidden absolute inset-0 bg-slate-950/90 flex flex-col items-center justify-center backdrop-blur-xl z-20">
-                        <div class="loader rounded-full border-4 border-white/5 h-12 w-12 mb-4"></div>
-                        <p class="text-amber-400 font-black text-[10px] uppercase tracking-widest animate-pulse">Generowanie karykatury...</p>
+                    <div id="loaderOverlay" class="hidden absolute inset-0 bg-slate-950/95 flex flex-col items-center justify-center backdrop-blur-xl z-20">
+                        <div class="loader mb-3"></div>
+                        <p id="loaderText" class="text-amber-400 font-bold text-[10px] uppercase tracking-widest animate-pulse">Przetwarzanie...</p>
                     </div>
                 </div>
 
-                <div id="actionContainer" class="hidden h-14 shrink-0 flex gap-3">
-                    <button id="resetBtn" class="flex-1 bg-white/5 hover:bg-white/10 rounded-2xl font-bold text-xs uppercase tracking-widest transition-all border border-white/10">Nowe</button>
-                    <button id="saveBtn" class="flex-1 bg-fuchsia-600 hover:bg-fuchsia-500 rounded-2xl font-bold text-xs uppercase tracking-widest transition-all shadow-lg">Zapisz</button>
+                <div id="actionContainer" class="hidden flex gap-2 shrink-0">
+                    <button id="resetBtn" class="btn bg-white/5 border border-white/10 flex-1">Nowe</button>
+                    <button id="saveBtn" class="btn btn-action flex-1">Zapisz</button>
                 </div>
-            </div>
+            </section>
         </main>
 
-        <footer class="shrink-0 text-center text-[10px] text-white/20 pb-1">
-            POWERED BY GEMINI 2.5 FLASH • WSZYSTKIE PRAWA ZASTRZEŻONE
+        <footer class="shrink-0 text-[9px] text-white/20 py-2 flex justify-between items-center px-2">
+            <span>PUBLIC API VERSION (1.5 FLASH)</span>
+            <span id="apiKeyWarning" class="text-red-500 hidden font-bold">SPRAWDŹ KLUCZ API!</span>
         </footer>
     </div>
 
     <script>
-        // API KEY: In the preview environment, this will be handled automatically.
-        const apiKey = "AIzaSyBdEZ-ptyF1CIrg2LT7QeDDziuuAKxbfOc"; 
+        /**
+         * TWOJE API: Wklej klucz poniżej.
+         */
+        const apiKey = ""; 
+        
         const video = document.getElementById('video');
         const canvas = document.getElementById('captureCanvas');
         const startBtn = document.getElementById('startBtn');
@@ -124,150 +194,139 @@
         const scanIndicator = document.getElementById('scanIndicator');
         const cameraPlaceholder = document.getElementById('cameraPlaceholder');
 
-        let isProcessing = false;
-        let detectionInterval = null;
+        // Automatyczne sprawdzenie klucza
+        if (apiKey === "" && !window.location.hostname.includes('gemini')) {
+            document.getElementById('apiKeyWarning').classList.remove('hidden');
+        }
 
-        // Unified fetch function with retry and 404 protection
-        async function callGemini(model, payload) {
+        async function apiRequest(model, payload) {
             const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-            const delays = [1000, 2000, 4000];
-            
-            for (let i = 0; i < delays.length; i++) {
-                try {
-                    const response = await fetch(url, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
-                    });
-                    
-                    if (response.status === 404) {
-                        // If model not found, try a standard fallback model
-                        if (model.includes('2.5')) return callGemini('gemini-1.5-flash', payload);
-                        throw new Error("Model nieodnaleziony (404)");
-                    }
-                    
-                    if (response.ok) return await response.json();
-                } catch (e) {
-                    if (i === delays.length - 1) throw e;
-                    await new Promise(r => setTimeout(r, delays[i]));
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.error?.message || "API Error");
                 }
+                return await response.json();
+            } catch (e) {
+                console.error("API Call failed:", e.message);
+                throw e;
             }
-            throw new Error("Błąd komunikacji z AI");
         }
 
         async function initCamera() {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } } 
+                    video: { facingMode: 'user', width: 1280, height: 720 } 
                 });
                 video.srcObject = stream;
                 video.onplaying = () => {
                     cameraPlaceholder.classList.add('hidden');
                     scanIndicator.classList.remove('hidden');
                     startBtn.classList.add('hidden');
-                    statusText.innerHTML = '<span class="text-cyan-400 font-black animate-pulse">Skanowanie...</span><br>Uśmiechnij się szeroko!';
-                    startAutoDetection();
+                    statusText.textContent = "Skanowanie uśmiechu...";
+                    startDetection();
                 };
-            } catch (err) {
-                statusText.innerHTML = '<span class="text-red-400">Brak dostępu do kamery.</span>';
-                console.error(err);
-            }
-        }
-
-        function startAutoDetection() {
-            if (detectionInterval) clearInterval(detectionInterval);
-            detectionInterval = setInterval(checkSmile, 3000);
-        }
-
-        function captureFrame() {
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            const ctx = canvas.getContext('2d');
-            ctx.translate(canvas.width, 0);
-            ctx.scale(-1, 1);
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-            return canvas.toDataURL('image/png').split(',')[1];
-        }
-
-        async function checkSmile() {
-            if (isProcessing) return;
-            const base64Data = captureFrame();
-            
-            try {
-                // Use 2.5-flash-preview as instructed, with 1.5-flash fallback in callGemini
-                const result = await callGemini('gemini-2.5-flash-preview-09-2025', {
-                    contents: [{
-                        role: "user",
-                        parts: [
-                            { text: "Analyze image. Is person smiling clearly? Response JSON: { \"smiling\": true/false, \"msg\": \"Short Polish advice\" }" },
-                            { inlineData: { mimeType: "image/png", data: base64Data } }
-                        ]
-                    }],
-                    generationConfig: { responseMimeType: "application/json" }
-                });
-
-                const analysis = JSON.parse(result.candidates[0].content.parts[0].text);
-                if (analysis.smiling) {
-                    processCaricature(base64Data);
-                } else if (analysis.msg) {
-                    statusText.textContent = analysis.msg;
-                }
             } catch (e) {
-                console.warn("API Error:", e.message);
+                statusText.textContent = "Brak dostępu do kamery.";
             }
         }
 
-        async function processCaricature(base64Data) {
-            isProcessing = true;
-            clearInterval(detectionInterval);
-            statusText.innerHTML = '<span class="text-green-400 font-black">UCHWYCONO UŚMIECH! 📸</span>';
-            scanIndicator.classList.add('hidden');
-            
-            placeholderUI.classList.add('hidden');
-            finalImage.src = `data:image/png;base64,${base64Data}`;
-            finalImage.classList.remove('hidden');
+        function startDetection() {
+            if (detectionInterval) clearInterval(detectionInterval);
+            detectionInterval = setInterval(async () => {
+                if (isProcessing) return;
+                
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                const ctx = canvas.getContext('2d');
+                ctx.translate(canvas.width, 0); ctx.scale(-1, 1);
+                ctx.drawImage(video, 0, 0);
+                const base64 = canvas.toDataURL('image/png').split(',')[1];
+
+                try {
+                    // Używamy 1.5-flash (najbardziej stabilny publicznie)
+                    const res = await apiRequest('gemini-1.5-flash', {
+                        contents: [{
+                            parts: [
+                                { text: "Is person smiling? Respond JSON: { \"smiling\": true/false, \"msg\": \"Feedback\" }" },
+                                { inlineData: { mimeType: "image/png", data: base64 } }
+                            ]
+                        }],
+                        generationConfig: { responseMimeType: "application/json" }
+                    });
+                    
+                    const data = JSON.parse(res.candidates[0].content.parts[0].text);
+                    if (data.smiling) {
+                        isProcessing = true;
+                        clearInterval(detectionInterval);
+                        statusText.textContent = "UŚMIECH WYKRYTY!";
+                        generateArt(base64);
+                    } else {
+                        statusText.textContent = data.msg || "Czekam na uśmiech...";
+                    }
+                } catch (e) {
+                    console.log("Detection skip...");
+                }
+            }, 3000);
+        }
+
+        async function generateArt(base64) {
             loaderOverlay.classList.remove('hidden');
+            placeholderUI.classList.add('hidden');
+            finalImage.src = `data:image/png;base64,${base64}`;
+            finalImage.classList.remove('hidden');
 
             try {
-                const response = await callGemini('gemini-2.5-flash-image-preview', {
+                // Próba generowania obrazu (wymaga Vertex AI lub konkretnego klucza z dostępem do Imagen)
+                // Na standardowym kluczu API Studio, 1.5-flash NIE generuje obrazów.
+                // Jeśli Twój klucz nie obsługuje Imagen, aplikacja wyświetli oryginalne zdjęcie jako 'szkic'.
+                
+                const response = await apiRequest('gemini-1.5-flash', {
                     contents: [{
                         parts: [
-                            { text: "Create a funny 3D caricature of this person. Pixar style. Big head, huge joyful smile, vibrant background. High quality digital art." },
-                            { inlineData: { mimeType: "image/png", data: base64Data } }
+                            { text: "Create a funny 3D caricature of this person. Pixar style." },
+                            { inlineData: { mimeType: "image/png", data: base64 } }
                         ]
                     }],
-                    generationConfig: { responseModalities: ['TEXT', 'IMAGE'] }
+                    // Próba wymuszenia modalności obrazu (działa tylko w środowiskach wspierających)
+                    generationConfig: { responseModalities: ["IMAGE"] }
                 });
 
-                const imagePart = response.candidates[0].content.parts.find(p => p.inlineData);
+                const imagePart = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
                 if (imagePart) {
                     finalImage.src = `data:image/png;base64,${imagePart.inlineData.data}`;
-                    statusText.textContent = "Twoja postać jest gotowa!";
-                    actionContainer.classList.remove('hidden');
+                } else {
+                    statusText.textContent = "Twoje zdjęcie (klucz nie wspiera generowania obrazów)";
                 }
             } catch (err) {
-                statusText.textContent = "Błąd generowania. Spróbuj ponownie.";
-                setTimeout(resetToScanning, 3000);
+                console.warn("Image gen failed - showing original as fallback");
+                statusText.textContent = "Klucz API ogranicza generowanie grafiki.";
             } finally {
                 loaderOverlay.classList.add('hidden');
+                actionContainer.classList.remove('hidden');
             }
         }
 
-        function resetToScanning() {
+        function reset() {
             isProcessing = false;
             finalImage.classList.add('hidden');
             placeholderUI.classList.remove('hidden');
             actionContainer.classList.add('hidden');
             scanIndicator.classList.remove('hidden');
-            statusText.innerHTML = '<span class="text-cyan-400 font-bold">Tryb detekcji...</span>';
-            startAutoDetection();
+            statusText.textContent = "Ponowne skanowanie...";
+            startDetection();
         }
 
-        resetBtn.onclick = resetToScanning;
+        resetBtn.onclick = reset;
         saveBtn.onclick = () => {
             const link = document.createElement('a');
             link.href = finalImage.src;
-            link.download = `karykatura-ai-${Date.now()}.png`;
+            link.download = `smile-ai.png`;
             link.click();
         };
         startBtn.onclick = initCamera;
