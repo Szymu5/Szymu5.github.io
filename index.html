@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Smile & Caricature Studio - Auto Mode</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .gradient-bg {
+            background: linear-gradient(135deg, #1a1c2c 0%, #4a192c 100%);
+        }
+        .loader {
+            border-top-color: #fbbf24;
+            animation: spinner 1.5s linear infinite;
+        }
+        @keyframes spinner {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .scanning-line {
+            height: 2px;
+            background: rgba(34, 211, 238, 0.5);
+            box-shadow: 0 0 15px #22d3ee;
+            position: absolute;
+            width: 100%;
+            top: 0;
+            animation: scan 3s linear infinite;
+        }
+        @keyframes scan {
+            0% { top: 0; }
+            100% { top: 100%; }
+        }
+    </style>
+</head>
+<body class="gradient-bg min-h-screen text-white flex flex-col items-center p-4 md:p-8">
+
+    <div class="max-w-4xl w-full bg-white/5 backdrop-blur-xl rounded-3xl p-6 shadow-2xl border border-white/10">
+        <header class="text-center mb-8">
+            <h1 class="text-4xl font-bold mb-2 tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-fuchsia-500">
+                Automatyczne AI uśmiechu 🤖
+            </h1>
+            <p class="text-gray-400">Po prostu się uśmiechnij, a ja zajmę się resztą!</p>
+        </header>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <!-- Sekcja Kamery -->
+            <div class="relative group">
+                <div id="scanIndicator" class="hidden absolute inset-0 z-10 pointer-events-none overflow-hidden rounded-2xl">
+                    <div class="scanning-line"></div>
+                </div>
+                <div class="relative bg-black rounded-2xl overflow-hidden aspect-video flex items-center justify-center border-2 border-white/10 shadow-inner">
+                    <video id="video" autoplay playsinline class="w-full h-full object-cover"></video>
+                    <canvas id="captureCanvas" class="hidden"></canvas>
+                </div>
+                <div id="statusMessage" class="mt-4 p-4 rounded-xl bg-white/5 border border-white/10 text-center font-medium min-h-[70px] flex items-center justify-center text-sm">
+                    Czekam na uruchomienie kamery...
+                </div>
+            </div>
+
+            <!-- Sekcja Wyniku -->
+            <div class="flex flex-col gap-4">
+                <div id="resultContainer" class="relative bg-black/40 rounded-2xl aspect-video flex items-center justify-center border-2 border-dashed border-white/10 overflow-hidden group">
+                    <span id="placeholderText" class="text-white/20 text-center px-4">Tu pojawi się Twoje zdjęcie, a potem karykatura</span>
+                    
+                    <!-- Podgląd zrobionego zdjęcia i finalna karykatura -->
+                    <img id="displayImage" class="hidden w-full h-full object-contain" alt="Podgląd">
+                    
+                    <!-- Nakładka ładowania -->
+                    <div id="loaderOverlay" class="hidden absolute inset-0 bg-black/60 flex flex-col items-center justify-center backdrop-blur-sm">
+                        <div class="loader ease-linear rounded-full border-4 border-t-4 border-white/20 h-12 w-12 mb-4"></div>
+                        <p class="text-amber-400 font-bold animate-pulse text-sm">PRZERABIAM NA KARYKATURĘ...</p>
+                    </div>
+                </div>
+
+                <div class="flex flex-col gap-3">
+                    <button id="startCamBtn" class="w-full bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 py-4 rounded-2xl font-bold transition-all transform hover:scale-[1.02] active:scale-95 shadow-xl">
+                        Uruchom Auto-Detekcję
+                    </button>
+                    
+                    <div id="actionButtons" class="hidden flex gap-3">
+                        <button id="resetBtn" class="flex-1 bg-white/10 hover:bg-white/20 py-4 rounded-2xl font-bold transition-all border border-white/10">
+                            Nowe zdjęcie
+                        </button>
+                        <button id="saveBtn" class="flex-1 bg-fuchsia-600 hover:bg-fuchsia-500 py-4 rounded-2xl font-bold transition-all shadow-lg">
+                            Zapisz
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const apiKey = "AIzaSyA0rWTTqVMQ-Z1P-a1KKkdRoeWWgAFkbaw"; 
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('captureCanvas');
+        const startBtn = document.getElementById('startCamBtn');
+        const statusMsg = document.getElementById('statusMessage');
+        const displayImage = document.getElementById('displayImage');
+        const placeholder = document.getElementById('placeholderText');
+        const loaderOverlay = document.getElementById('loaderOverlay');
+        const actionButtons = document.getElementById('actionButtons');
+        const resetBtn = document.getElementById('resetBtn');
+        const saveBtn = document.getElementById('saveBtn');
+        const scanIndicator = document.getElementById('scanIndicator');
+
+        let isProcessing = false;
+        let detectionInterval = null;
+
+        // Inicjalizacja kamery
+        async function initCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: 'user', width: 1280, height: 720 } 
+                });
+                video.srcObject = stream;
+                startBtn.classList.add('hidden');
+                scanIndicator.classList.remove('hidden');
+                statusMsg.textContent = "AI aktywne. Uśmiechnij się do kamery!";
+                
+                // Rozpocznij pętlę sprawdzania co 3 sekundy
+                startAutoDetection();
+            } catch (err) {
+                statusMsg.textContent = "Błąd: Brak dostępu do kamery. Upewnij się, że udzieliłeś uprawnień.";
+                console.error(err);
+            }
+        }
+
+        function startAutoDetection() {
+            if (detectionInterval) clearInterval(detectionInterval);
+            detectionInterval = setInterval(checkSmile, 3000);
+        }
+
+        async function callGemini(payload, model = "gemini-2.5-flash-preview-09-2025") {
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+            for (let i = 0; i < 5; i++) {
+                try {
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    if (response.ok) return await response.json();
+                    await new Promise(r => setTimeout(r, Math.pow(2, i) * 1000));
+                } catch (e) {}
+            }
+            throw new Error("API Timeout");
+        }
+
+        function captureFrame() {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            return canvas.toDataURL('image/png');
+        }
+
+        async function checkSmile() {
+            if (isProcessing) return;
+
+            const fullDataUrl = captureFrame();
+            const base64Data = fullDataUrl.split(',')[1];
+            
+            statusMsg.innerHTML = '<span class="text-cyan-400 animate-pulse">Skanowanie twarzy...</span>';
+
+            const prompt = "Analyze this image. Is the person smiling clearly? Answer ONLY with JSON: { \"smiling\": true/false }. If false, optionally add a short funny Polish 'message' to encourage a smile.";
+
+            try {
+                const result = await callGemini({
+                    contents: [{
+                        parts: [
+                            { text: prompt },
+                            { inlineData: { mimeType: "image/png", data: base64Data } }
+                        ]
+                    }],
+                    generationConfig: { responseMimeType: "application/json" }
+                });
+
+                const analysis = JSON.parse(result.candidates[0].content.parts[0].text);
+
+                if (analysis.smiling) {
+                    isProcessing = true;
+                    clearInterval(detectionInterval);
+                    statusMsg.innerHTML = '<span class="text-green-400 font-bold">UŚMIECH WYKRYTY! 📸</span>';
+                    
+                    // POKAZUJEMY ZDJĘCIE NATYCHMIAST
+                    placeholder.classList.add('hidden');
+                    displayImage.src = fullDataUrl;
+                    displayImage.classList.remove('hidden');
+                    loaderOverlay.classList.remove('hidden');
+                    scanIndicator.classList.add('hidden');
+
+                    await generateCaricature(base64Data);
+                } else {
+                    statusMsg.textContent = analysis.message || "Nie widzę uśmiechu... No dalej!";
+                }
+            } catch (err) {
+                console.error("Detection error:", err);
+            }
+        }
+
+        async function generateCaricature(base64Data) {
+            const prompt = "Create a funny, professional digital art caricature based on this person. Exaggerate features: big expressive head, tiny body, big joyful smile. Vibrant colors, clean lines, comedic style. Keep the person recognizable.";
+
+            try {
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image-preview:generateContent?key=${apiKey}`;
+                
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{
+                            parts: [{ text: prompt }, { inlineData: { mimeType: "image/png", data: base64Data } }]
+                        }],
+                        generationConfig: { responseModalities: ['TEXT', 'IMAGE'] }
+                    })
+                });
+
+                const result = await response.json();
+                const imagePart = result.candidates[0].content.parts.find(p => p.inlineData);
+                
+                if (imagePart) {
+                    const caricatureData = `data:image/png;base64,${imagePart.inlineData.data}`;
+                    // ZASTĘPUJEMY ZDJĘCIE KARYKATURĄ
+                    displayImage.src = caricatureData;
+                    statusMsg.textContent = "Twoja karykatura jest gotowa!";
+                    actionButtons.classList.remove('hidden');
+                }
+            } catch (err) {
+                statusMsg.textContent = "Błąd generowania. Spróbuj jeszcze raz.";
+                resetToScanning();
+            } finally {
+                loaderOverlay.classList.add('hidden');
+            }
+        }
+
+        function resetToScanning() {
+            isProcessing = false;
+            displayImage.classList.add('hidden');
+            placeholder.classList.remove('hidden');
+            actionButtons.classList.add('hidden');
+            scanIndicator.classList.remove('hidden');
+            statusMsg.textContent = "Wracamy do skanowania... Czekam na uśmiech!";
+            startAutoDetection();
+        }
+
+        resetBtn.onclick = resetToScanning;
+
+        saveBtn.onclick = () => {
+            const link = document.createElement('a');
+            link.href = displayImage.src;
+            link.download = `karykatura-${Date.now()}.png`;
+            link.click();
+        };
+
+        startBtn.onclick = initCamera;
+
+    </script>
+</body>
+</html>
